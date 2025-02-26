@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Recipes
+{% endblock %}
+
+{% block main %}
+<div>
+    <table>
+        <div class="accordion" id="recipe_accordion"></div>
+    </table>
+</div>
+<script>
+    let html = '';
+    let recipes = {{ recipe|tojson }};
+    let recipe_ingredients = {{recipe_ingredients|tojson}};
+    let recipe_steps = {{ recipe_steps|tojson}};
+    let pantry = {{ pantry|tojson }};
+    let pantrySet = new Set(pantry.map(item => item.name));
+    for (let entry of recipes) {
+		html += '<div class="accordion-item">' +
+            '<h2 class="accordion-header" id="header_' + entry.id + '">' +
+            '<button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#panel_' + entry.id +'" aria-expanded="true" aria-controls="panel_' + entry.id + '">' + entry.name + '</button>'  +
+            '</h2>' +
+            '<div id="panel_' + entry.id + '" class="accordion-collapse collapse show" aria-labelledby="header_' + entry.id + '">' +
+            '<div class="accordion-body">' +
+            '<h3>' + 'Ingredients' + '</h3>';
+            for (let ingredient of recipe_ingredients) {
+                if (ingredient.id == entry.id) {
+                    if (ingredient.ingredient_optional == 1) {
+                        html += '<p class="optional">'  + ingredient.ingredient_quantity + ' ' + ingredient.unit_measurement + ' ' + ingredient.name + '</p>';
+                    }
+                    else if (!pantrySet.has(ingredient.name)) {
+                        html += '<p class="unavailable">'  + ingredient.ingredient_quantity + ' ' + ingredient.unit_measurement + ' ' + ingredient.name + '</p>';
+                    }
+                    else {
+                        html += '<p>' + ingredient.ingredient_quantity + ' ' + ingredient.unit_measurement + ' ' + ingredient.name + '</p>'
+                    }
+                }
+            }
+            html += '<h3>' + 'Steps' + '</h3>';
+            for (let step of recipe_steps) {
+                if (step.id == entry.id) {
+                    html += '<p>' + step.recipe_step_number + '. ' + step.recipe_step_instructions + '</p>';
+                }
+            }
+            html += '</div>' +
+            '</div>' +
+            '</div>'
+    };
+    document.querySelector('#recipe_accordion').innerHTML = html;
+</script>
+{% endblock %}

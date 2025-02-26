@@ -1,0 +1,348 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Pantry
+{% endblock %}
+
+{% block main %}
+
+<form action="/pantry/searchpantry" method="post">
+    <div>
+        <table class="table table-striped">
+			<thead>
+				<tr>
+					<th display="hidden" name="pantry_id"></th>
+                    <th>Ingredient</th>
+					<th>Quantity</th>
+                    <th>Measurement</th>
+					<th>Last Purchased</th>
+				</tr>
+			</thead>
+			<tbody id="pantry_table"></tbody>
+		</table>
+    </div>
+    <div class="container">
+        <div>
+            <input autocomplete="off" id="pantry_search" name="pantry_search" placeholder="Search pantry for ingredient" type="search">
+        </div>
+        <div>
+            <button type="submit" id="remove_pantry_ingredient" name="remove_pantry_ingredient">Remove ingredient from pantry</button>
+        </div>
+    </div>
+</form>
+<form action="/pantry" method="post">
+    <div class="container">
+        <div>
+            <input autocomplete="off" name="ingredient" placeholder ="Input ingredient" type="text">
+        </div>
+        <div>
+            <input autocomplete="off" name="quantity" min="0" placeholder ="Quantity" type="number" step="0.01" value="0">
+            <select id="measurement" name="measurement">
+            </select>
+            <input type="hidden" name="measurements" id="measurements">
+        </div>
+        <div>
+            <button type="submit" name="add_to_pantry">Add to Pantry</button>
+            <button type="submit" name="add_to_shopping">Add to Grocery List</button>
+        </div>
+    </div>
+</form>
+<script>
+    // Search Pantry
+    document.addEventListener('DOMContentLoaded', async function(){
+        let response = await fetch('/pantry/searchpantry');
+        let pantry = await response.json();
+        let pantry_html = '';
+        for (let ingredient of pantry) {
+            pantry_html += '<tr>' +
+                '<td style="display: none;">' + ingredient.id  + '</td>' +
+                '<td>' + '</td>' +
+                '<td>'+ ingredient.name +'</td>' +
+                '<td>' + ingredient.quantity + '</td>' +
+                '<td>' + ingredient.quantity_measurement + '</td>' +
+                '<td>' + ingredient.last_purchased_ingredient + '</td>' +
+            '</tr>'
+        }
+        document.querySelector('tbody').innerHTML = pantry_html;
+    });
+    document.addEventListener('DOMContentLoaded', function(){
+        let pantry_search = document.querySelector('#pantry_search');
+        pantry_search.addEventListener('input', async function(event){
+            event.preventDefault();
+            let response = await fetch('/pantry/searchpantry?query=' + pantry_search.value)
+            let pantry = await response.json();
+            let pantry_html = '';
+            for (let ingredient of pantry) {
+                pantry_html += '<tr>' +
+                    '<td style="display: none;">' + ingredient.id  + '</td>' +
+                    '<td>' + '</td>' +
+                    '<td>'+ ingredient.name +'</td>' +
+                    '<td>' + ingredient.quantity + '</td>' +
+                    '<td>' + ingredient.quantity_measurement + '</td>' +
+                    '<td>' + ingredient.last_purchased_ingredient + '</td>' +
+                '</tr>'
+            }
+            document.querySelector('tbody').innerHTML = pantry_html;
+        });
+    });
+    // Table Editing with Clicks
+    document.addEventListener('DOMContentLoaded', function(){
+        let currentCell = null;
+        let modify_pantry = null;
+        let pantry_table = document.querySelector('#pantry_table');
+        pantry_table.addEventListener('click', function(){
+            // if you click a cell in name column
+            let original_cell_value = event.target.innerHTML;
+            let clickedCell = event.target;
+            if (currentCell != null && currentCell.querySelector('input') != null && event.target !== pantry_table.querySelector('input'))
+            {
+                currentCell.querySelector('input').blur();
+            }
+            if (clickedCell.cellIndex == 2) {
+                clickedCell.closest('td').classList.toggle('selected')
+                modify_pantry = clickedCell.value
+                document.querySelector('#remove_pantry_ingredient').addEventListener('click', function(){
+                    event.preventDefault();
+                    fetch('/update', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 'id': clickedCell.parentElement.cells[0].innerHTML })
+                    }).then(response => response.json()).then(data=> {console.log(data);}).catch(error => {console.error('Error: check the table editing:', error);})
+                    clickedCell.parentElement.remove();
+                })
+            }
+            // if you click either of the quantity or last purchase date, change to input field
+            if (clickedCell.cellIndex == 3 && clickedCell != currentCell)  {
+                if (original_cell_value != null) {
+                    clickedCell.innerHTML = original_cell_value;
+                    document.querySelector('#modified_pantry_cell')?.remove();
+                }
+                clickedCell.innerHTML = ("<input autocomplete='off' autofocus id='modified_pantry_cell' type='number' min='0' step='0.01'>");
+                let previousCell = currentCell;
+                currentCell = clickedCell;
+                if (original_cell_value != null && previousCell != null) {
+                    previousCell.originalValue = original_cell_value;
+                }
+                let inputField = document.querySelector('#modified_pantry_cell');
+                inputField.addEventListener('keydown', function(){
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                    }
+                });
+                inputField.addEventListener('blur', async function(event){
+                    event.preventDefault();
+                    if (previousCell != null && event.target.value != previousCell.originalValue && event.target.value != "") {
+                        console.log(event.target.parentElement.parentElement);
+                        fetch('/update', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 'quantity': event.target.value, 'id': event.target.parentElement.parentElement.cells[0].innerHTML })
+                        }).then(response => response.json()).then(data=> {console.log(data);}).catch(error => {console.error('Error: check the table editing:', error);})
+                        clickedCell.innerHTML = event.target.value;
+                    }
+                    else if (previousCell === null && event.target.value != "") {
+                        console.log(event.target.parentElement.parentElement);
+                        fetch('/update', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 'quantity': event.target.value, 'id': event.target.parentElement.parentElement.cells[0].innerHTML })
+                        }).then(response => response.json()).then(data=> {console.log(data);}).catch(error => {console.error('Error: check the table editing:', error);})
+                        clickedCell.innerHTML = event.target.value;
+                    }
+                    else {
+                        if (previousCell == null) {
+                            currentCell.innerHTML = original_cell_value;
+                            document.querySelector('#modified_pantry_cell')?.remove();
+                        }
+                        else {
+                            currentCell.innerHTML = previousCell.originalValue;
+                            document.querySelector('#modified_pantry_cell')?.remove();
+                        }
+                    }
+                });
+            }
+            if (clickedCell.cellIndex == 5 && clickedCell != currentCell) {
+                if (original_cell_value != null) {
+                    clickedCell.innerHTML = original_cell_value;
+                    document.querySelector('#modified_pantry_cell')?.remove();
+                }
+                clickedCell.innerHTML = ("<input autocomplete='off' autofocus id='modified_pantry_cell' type='date'>");
+                let previousCell = currentCell;
+                currentCell = clickedCell;
+                if (original_cell_value != null && previousCell != null) {
+                    previousCell.originalValue = original_cell_value;
+                }
+                let inputField = document.querySelector('#modified_pantry_cell');
+                inputField.addEventListener('keydown', function(){
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                    }
+                });
+                inputField.addEventListener('blur', async function(event){
+                    event.preventDefault();
+                    if (previousCell != null && event.target.value != previousCell.originalValue && event.target.value != "") {
+                        fetch('/update', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 'last_purchased_ingredient': event.target.value, 'id': event.target.parentElement.parentElement.cells[0].innerHTML })
+                        }).then(response => response.json()).then(data=> {console.log(data);}).catch(error => {console.error('Error: check the table editing:', error);})
+                        clickedCell.innerHTML = event.target.value;
+                    }
+                    else if (previousCell === null && event.target.value != "") {
+                        fetch('/update', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 'last_purchased_ingredient': event.target.value, 'id': event.target.parentElement.parentElement.cells[0].innerHTML })
+                        }).then(response => response.json()).then(data=> {console.log(data);}).catch(error => {console.error('Error: check the table editing:', error);})
+                        clickedCell.innerHTML = event.target.value;
+                    }
+                    else {
+                        if (previousCell == null) {
+                            currentCell.innerHTML = original_cell_value;
+                            document.querySelector('#modified_pantry_cell')?.remove();
+                        }
+                        else {
+                            currentCell.innerHTML = previousCell.originalValue;
+                            document.querySelector('#modified_pantry_cell')?.remove();
+                        }
+                    }
+                });
+            }
+        });
+    });
+    // Ingredient Search or Add to Pantry
+    document.addEventListener('DOMContentLoaded', function(){
+        document.addEventListener("add_to_pantry", async function(){
+            event.preventDefault();
+            let ingredient = document.querySelector("ingredient");
+            document.getElementById("measurements").value = JSON.stringify(measurements)
+            let response = await fetch("/pantry?query=" + ingredient.value);
+            let queried_ingredient = await response.json();
+        });
+        document.addEventListener("add_to_shopping", async function(){
+            event.preventDefault();
+            let ingredient = document.querySelector("ingredient");
+            let response = await fetch("/pantry?query=" + ingredient.value);
+            let queried_ingredient = await response.json();
+        });
+    });
+    // Measurement Dropdown Menu
+    var measurements = [
+        {
+            "text":"Imperial",
+            "children": [ {
+                    id: 0,
+                    text:'pound'
+                },
+                {
+                    id: 1,
+                    text:'ounce'
+                },
+                {
+                    id: 2,
+                    text:'gallon'
+                },
+                {
+                    id: 3,
+                    text:'quart'
+                },
+                {
+                    id: 4,
+                    text:'pint'
+                },
+                {
+                    id: 5,
+                    text:'cup'
+                },
+                {
+                    id: 6,
+                    text:'fluid ounce'
+                },
+                {
+                    id: 7,
+                    text:'tablespoon'
+                },
+                {
+                    id: 8,
+                    text:'teaspoon'
+                }
+            ]
+        },
+        {
+            "text":"Metric",
+            "children": [
+                {
+                    id: 9,
+                    text:'grams'
+                },
+                {
+                    id: 10,
+                    text:'milligrams'
+                },
+                {
+                    id: 11,
+                    text:'kilograms'
+                },
+                {
+                    id: 12,
+                    text:'milliliters'
+                },
+                {
+                    id: 13,
+                    text:'liters'
+                }
+            ]
+        },
+        {
+            "text":"Miscellaneous",
+            "children": [
+                {
+                    id: 14,
+                    text:'unit'
+                },
+                {
+                    id: 15,
+                    text:'box'
+                },
+                {
+                    id: 16,
+                    text:'bottle'
+                },
+                {
+                    id: 17,
+                    text:'can'
+                },
+                {
+                    id: 18,
+                    text:'bag'
+                },
+                {
+                    id: 19,
+                    text:'package'
+                }
+            ]
+        },
+    ];
+    $('#measurement').select2({
+        data: measurements,
+        placeholder: 'Select an option',
+        width: 'style',
+        tags:true,
+        insertTag: function (data, tag) {
+            data.push(tag);
+        }
+    });
+
+</script>
+
+{% endblock %}
